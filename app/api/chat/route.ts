@@ -18,14 +18,13 @@ export async function POST(req: Request) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "deepseek-v4-0324",
+      model: "deepseek-v4-flash",
       messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
       stream: true,
     }),
   });
 
   if (!response.ok) {
-    const error = await response.text();
     return new Response(
       JSON.stringify({ error: `DeepSeek API error: ${response.status}` }),
       { status: response.status, headers: { "Content-Type": "application/json" } }
