@@ -10,8 +10,14 @@ interface Message {
   content: string;
 }
 
+const INITIAL_USER_MESSAGE: Message = {
+  role: "user",
+  content: "你好，我想起一个英文名",
+};
+
 export function ChatWindow() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [apiMessages, setApiMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -33,7 +39,7 @@ export function ChatWindow() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: "你好，我想起一个英文名" }],
+          messages: [INITIAL_USER_MESSAGE],
         }),
       });
 
@@ -41,15 +47,16 @@ export function ChatWindow() {
 
       setIsStreaming(true);
       setMessages([{ role: "assistant", content: "" }]);
+      setApiMessages([INITIAL_USER_MESSAGE]);
       await readStream(response);
     } catch {
-      setMessages([
-        {
-          role: "assistant",
-          content:
-            "你好呀！很高兴能帮你找到一个属于你的英文名。让我们从一个轻松的问题开始吧——如果用一个季节来形容自己，你觉得自己是哪个季节的人呢？",
-        },
-      ]);
+      const fallback: Message = {
+        role: "assistant",
+        content:
+          "你好呀！很高兴能帮你找到一个属于你的英文名。让我们从一个轻松的问题开始吧——如果用一个季节来形容自己，你觉得自己是哪个季节的人呢？",
+      };
+      setMessages([fallback]);
+      setApiMessages([INITIAL_USER_MESSAGE, fallback]);
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
@@ -95,21 +102,23 @@ export function ChatWindow() {
         }
       }
     }
+    setApiMessages((prev) => [...prev, { role: "assistant", content: result }]);
   }
 
   async function sendMessage(content: string) {
     if (!content.trim() || isLoading) return;
 
     const userMessage: Message = { role: "user", content };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
+    setMessages((prev) => [...prev, userMessage]);
+    const messagesToSend = [...apiMessages, userMessage];
+    setApiMessages(messagesToSend);
     setIsLoading(true);
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: messagesToSend }),
       });
 
       if (!response.ok) throw new Error("API error");
@@ -118,10 +127,12 @@ export function ChatWindow() {
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
       await readStream(response);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "抱歉，出了点小问题。请稍后再试一下吧。" },
-      ]);
+      const errorMsg: Message = {
+        role: "assistant",
+        content: "抱歉，出了点小问题。请稍后再试一下吧。",
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+      setApiMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
